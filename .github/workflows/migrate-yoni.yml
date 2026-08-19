@@ -1,0 +1,139 @@
+name: Migrate parked Yoni
+
+on:
+  push:
+    paths:
+      - '.github/workflows/migrate-yoni.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Yoni Parking
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch preserved Yoni source
+        run: |
+          git clone --depth 1 --branch archive/yoni-standalone https://github.com/masinlocandher-max/FMB-Ecosystem.git /tmp/fmb
+
+      - name: Build standalone Yoni tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf app assets gethelp privacy-policy.html community-guidelines.html
+          mkdir -p app/assets assets/css assets/js assets/images
+
+          # Preserve the current production Yoni HTML byte-for-byte.
+          cp /tmp/fmb/apps/withlovefmb/app/index.html index.html
+          cp /tmp/fmb/apps/withlovefmb/app/manifest.webmanifest app/manifest.webmanifest
+          cp -a /tmp/fmb/apps/withlovefmb/app/assets/yoni app/assets/
+          cp /tmp/fmb/apps/withlovefmb/app/senz-wordmark.svg app/senz-wordmark.svg
+          cp /tmp/fmb/apps/withlovefmb/app/cognita-wordmark.svg app/cognita-wordmark.svg
+          cp /tmp/fmb/apps/withlovefmb/app/yoni-icon.svg app/yoni-icon.svg
+          cp /tmp/fmb/apps/withlovefmb/app/yoni-mascot.svg app/yoni-mascot.svg
+          if [ -d /tmp/fmb/apps/withlovefmb/app/install ]; then cp -a /tmp/fmb/apps/withlovefmb/app/install app/install; fi
+
+          # Only shared files Yoni actually calls at runtime.
+          cp /tmp/fmb/apps/withlovefmb/assets/css/yoni-app-refresh.css assets/css/
+          cp /tmp/fmb/apps/withlovefmb/assets/js/config.js assets/js/
+          cp /tmp/fmb/apps/withlovefmb/assets/js/supabase-client.js assets/js/
+          cp /tmp/fmb/apps/withlovefmb/assets/js/yoni-experience-loader.js assets/js/
+          cp /tmp/fmb/apps/withlovefmb/assets/js/yoni-native-libraries.js assets/js/
+          cp /tmp/fmb/apps/withlovefmb/assets/images/founder.webp assets/images/
+
+          # Bring over legal/help routes when present, because the Yoni HTML links to them.
+          for item in privacy-policy.html community-guidelines.html gethelp; do
+            if [ -e "/tmp/fmb/apps/withlovefmb/$item" ]; then cp -a "/tmp/fmb/apps/withlovefmb/$item" "$item"; fi
+          done
+
+          # Explicitly exclude former FMB product integrations.
+          rm -f assets/js/yoni-native-ebooks.js assets/js/yoni-native-music.js assets/js/global-music.js
+          rm -f assets/css/yoni-native-libraries.css assets/css/yoni-native-reader-compat.css
+
+          # Rename Yoni-native wellbeing tools so they are not presented as FMB Music/eBook product verticals.
+          python - <<'PY'
+          from pathlib import Path
+          import json
+
+          p = Path('index.html')
+          s = p.read_text()
+          s = s.replace('supportive reading, original music, and finding human help', 'supportive reading, quiet soundscapes, and finding human help')
+          p.write_text(s)
+
+          m = Path('app/manifest.webmanifest')
+          data = json.loads(m.read_text())
+          data['categories'] = ['health', 'lifestyle']
+          for shortcut in data.get('shortcuts', []):
+              if shortcut.get('name') == 'Yoni Music':
+                  shortcut['name'] = 'Quiet Room'
+                  shortcut['short_name'] = 'Sounds'
+              elif shortcut.get('name') == 'Yoni eBooks':
+                  shortcut['name'] = 'Gentle Guides'
+                  shortcut['short_name'] = 'Guides'
+          m.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n')
+          PY
+
+          # Drop obviously orphaned legacy source files instead of importing them.
+          if ! grep -RqsF 'yoni-music.png' index.html app assets --exclude='yoni-music.png'; then rm -f app/assets/yoni/yoni-music.png; fi
+
+          cat > MIGRATION.md <<'EOF'
+          # Yoni extraction
+
+          Extracted from `masinlocandher-max/FMB-Ecosystem` branch `archive/yoni-standalone` on 2026-08-20.
+
+          ## Included
+          - Yoni production HTML and PWA assets
+          - Yoni auth/Supabase helper files required by the current app
+          - Yoni-specific visual refresh/helper files
+          - linked founder image and available help/legal routes
+
+          ## Deliberately excluded
+          - FMB Music catalog/player integration
+          - FMB eBook library/readers
+          - global FMB music dock
+          - unrelated With Love FMB pages and assets
+
+          Yoni's browser-generated Quiet Room soundscapes and short supportive guides remain because they are native wellbeing tools, not the removed FMB Music/eBook product verticals.
+          EOF
+
+          cat > .gitignore <<'EOF'
+          .DS_Store
+          .env
+          .env.*
+          !.env.example
+          node_modules/
+          .vercel/
+          dist/
+          build/
+          *.log
+          EOF
+
+      - name: Verify product libraries are absent
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e assets/js/yoni-native-ebooks.js
+          test ! -e assets/js/yoni-native-music.js
+          test ! -e assets/js/global-music.js
+          test ! -e assets/css/yoni-native-libraries.css
+          test ! -e assets/css/yoni-native-reader-compat.css
+          ! grep -RInE 'Yoni Music|Yoni eBooks|global-music\.js|yoni-native-(ebooks|music)\.js' . --exclude-dir=.git --exclude='migrate-yoni.yml' --exclude='MIGRATION.md'
+
+      - name: Commit migrated application
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo 'No migration changes to commit.'
+          else
+            git commit -m 'Migrate standalone Yoni application'
+            git push origin HEAD:main
+          fi

@@ -1,0 +1,70 @@
+{
+  "name": "Yoni Digital Companion",
+  "short_name": "Yoni",
+  "description": "A gentle digital companion for private check-ins, journaling, venting, grounding, supportive reading, and finding human support.",
+  "id": "/app/",
+  "start_url": "/app/#home",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "background_color": "#fff8df",
+  "theme_color": "#fff3c4",
+  "categories": [
+    "health",
+    "lifestyle"
+  ],
+  "icons": [
+    {
+      "src": "/app/assets/yoni/yoni-app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/assets/yoni/yoni-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/app/assets/yoni/yoni-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Daily check-in",
+      "short_name": "Check in",
+      "url": "/app/#checkin"
+    },
+    {
+      "name": "Private journal",
+      "short_name": "Journal",
+      "url": "/app/#journal"
+    },
+    {
+      "name": "Quiet Room",
+      "short_name": "Sounds",
+      "url": "/app/#listen"
+    },
+    {
+      "name": "Gentle Guides",
+      "short_name": "Guides",
+      "url": "/app/#read"
+    },
+    {
+      "name": "Human support",
+      "short_name": "Support",
+      "url": "/app/#help"
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  }
+}
